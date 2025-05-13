@@ -1,4 +1,4 @@
-__author__ = 'yunbo'
+__author__ = 'Thomas Helsen, Bram Mulder, Luuk Neervens'
 
 import os
 import shutil
@@ -207,13 +207,17 @@ def test_wrapper(model):
     trainer.test(model, test_input_handle, args, 'test_result')
 
 
-if os.path.exists(args.save_dir):
-    shutil.rmtree(args.save_dir)
-os.makedirs(args.save_dir)
+try:
+    shutil.rmtree(args.save_dir, ignore_errors=True)
+except Exception:
+    pass
+os.makedirs(args.save_dir, exist_ok=True)
 
-if os.path.exists(args.gen_frm_dir):
-    shutil.rmtree(args.gen_frm_dir)
-os.makedirs(args.gen_frm_dir)
+try:
+    shutil.rmtree(args.gen_frm_dir, ignore_errors=True)
+except Exception:
+    pass
+os.makedirs(args.gen_frm_dir, exist_ok=True)
 
 print('Initializing models')
 
@@ -223,3 +227,7 @@ if args.is_training:
     train_wrapper(model)
 else:
     test_wrapper(model)
+
+
+
+
