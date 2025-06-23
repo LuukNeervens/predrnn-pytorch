@@ -27,7 +27,9 @@ class RNN(nn.Module):
             in_channel = self.frame_channel if i == 0 else num_hidden[i - 1]
             cell_list.append(
                 SpatioTemporalLSTMCell(in_channel, num_hidden[i], width, configs.filter_size,
-                                       configs.stride, configs.layer_norm)
+                                       configs.stride, configs.layer_norm,
+                                       use_attention=configs.use_attention,
+                                       attention_heads=configs.attention_heads)
             )
         self.cell_list = nn.ModuleList(cell_list)
         self.conv_last = nn.Conv2d(num_hidden[num_layers - 1], self.frame_channel, kernel_size=1, stride=1, padding=0,

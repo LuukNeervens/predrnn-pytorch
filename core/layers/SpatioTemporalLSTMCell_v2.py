@@ -3,13 +3,44 @@ __author__ = 'yunbo'
 import torch
 import torch.nn as nn
 
+class SpatialAttention(nn.Module):
+    def __init__(self, num_hidden, num_heads=8):
+        super(SpatialAttention, self).__init__()
+        self.num_heads = num_heads
+        self.head_dim = num_hidden // num_heads
+        self.scale = self.head_dim ** -0.5
+        
+        self.query = nn.Conv2d(num_hidden, num_hidden, 1, bias=False)
+        self.key = nn.Conv2d(num_hidden, num_hidden, 1, bias=False)
+        self.value = nn.Conv2d(num_hidden, num_hidden, 1, bias=False)
+        self.out_proj = nn.Conv2d(num_hidden, num_hidden, 1, bias=False)
+        
+    def forward(self, x):
+        B, C, H, W = x.shape
+        
+        # Generate Q, K, V
+        q = self.query(x).view(B, self.num_heads, self.head_dim, H * W)
+        k = self.key(x).view(B, self.num_heads, self.head_dim, H * W)
+        v = self.value(x).view(B, self.num_heads, self.head_dim, H * W)
+        
+        # Attention computation
+        attn = torch.softmax(torch.matmul(q.transpose(-2, -1), k) * self.scale, dim=-1)
+        out = torch.matmul(v, attn.transpose(-2, -1))
+        
+        # Reshape and project
+        out = out.view(B, C, H, W)
+        return self.out_proj(out)
+
 class SpatioTemporalLSTMCell(nn.Module):
-    def __init__(self, in_channel, num_hidden, width, filter_size, stride, layer_norm):
+    def __init__(self, in_channel, num_hidden, width, filter_size, stride, layer_norm, use_attention=False, attention_heads=8):
         super(SpatioTemporalLSTMCell, self).__init__()
 
         self.num_hidden = num_hidden
         self.padding = filter_size // 2
         self._forget_bias = 1.0
+        self.use_attention = use_attention
+        
+        # Original convolution layers
         if layer_norm:
             self.conv_x = nn.Sequential(
                 nn.Conv2d(in_channel, num_hidden * 7, kernel_size=filter_size, stride=stride, padding=self.padding, bias=False),
@@ -40,8 +71,13 @@ class SpatioTemporalLSTMCell(nn.Module):
             self.conv_o = nn.Sequential(
                 nn.Conv2d(num_hidden * 2, num_hidden, kernel_size=filter_size, stride=stride, padding=self.padding, bias=False),
             )
+        
         self.conv_last = nn.Conv2d(num_hidden * 2, num_hidden, kernel_size=1, stride=1, padding=0, bias=False)
-
+        
+        # Add attention mechanism conditionally
+        if self.use_attention:
+            print('NOTE: Using spatial attention mechanism')
+            self.attention = SpatialAttention(num_hidden, attention_heads)
 
     def forward(self, x_t, h_t, c_t, m_t):
         x_concat = self.conv_x(x_t)
@@ -68,6 +104,11 @@ class SpatioTemporalLSTMCell(nn.Module):
         mem = torch.cat((c_new, m_new), 1)
         o_t = torch.sigmoid(o_x + o_h + self.conv_o(mem))
         h_new = o_t * torch.tanh(self.conv_last(mem))
+
+        # Apply attention to hidden state if enabled
+        if self.use_attention:
+            h_attended = self.attention(h_new)
+            h_new = h_new + h_attended  # Residual connection
 
         return h_new, c_new, m_new, delta_c, delta_m
 

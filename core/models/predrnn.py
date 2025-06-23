@@ -22,11 +22,13 @@ class RNN(nn.Module):
             in_channel = self.frame_channel if i == 0 else num_hidden[i - 1]
             cell_list.append(
                 SpatioTemporalLSTMCell(in_channel, num_hidden[i], width, configs.filter_size,
-                                       configs.stride, configs.layer_norm)
+                                       configs.stride, configs.layer_norm,
+                                       use_attention=configs.use_attention,
+                                       attention_heads=configs.attention_heads)
             )
         self.cell_list = nn.ModuleList(cell_list)
-        self.conv_last = nn.Conv2d(num_hidden[num_layers - 1], self.frame_channel,
-                                   kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv_last = nn.Conv2d(num_hidden[num_layers - 1], self.frame_channel, kernel_size=1, stride=1, padding=0,
+                                   bias=False)
 
     def forward(self, frames_tensor, mask_true):
         # [batch, length, height, width, channel] -> [batch, length, channel, height, width]
@@ -46,26 +48,18 @@ class RNN(nn.Module):
             h_t.append(zeros)
             c_t.append(zeros)
 
-        memory = torch.zeros([batch, self.num_hidden[0], height, width]).to(self.configs.device)
-
         for t in range(self.configs.total_length - 1):
-            # reverse schedule sampling
-            if self.configs.reverse_scheduled_sampling == 1:
-                if t == 0:
-                    net = frames[:, t]
-                else:
-                    net = mask_true[:, t - 1] * frames[:, t] + (1 - mask_true[:, t - 1]) * x_gen
+            # schedule sampling
+            if t < self.configs.input_length:
+                net = frames[:, t]
             else:
-                if t < self.configs.input_length:
-                    net = frames[:, t]
-                else:
-                    net = mask_true[:, t - self.configs.input_length] * frames[:, t] + \
-                          (1 - mask_true[:, t - self.configs.input_length]) * x_gen
+                net = mask_true[:, t - self.configs.input_length] * frames[:, t] + \
+                      (1 - mask_true[:, t - self.configs.input_length]) * x_gen
 
-            h_t[0], c_t[0], memory = self.cell_list[0](net, h_t[0], c_t[0], memory)
+            h_t[0], c_t[0] = self.cell_list[0](net, h_t[0], c_t[0])
 
             for i in range(1, self.num_layers):
-                h_t[i], c_t[i], memory = self.cell_list[i](h_t[i - 1], h_t[i], c_t[i], memory)
+                h_t[i], c_t[i] = self.cell_list[i](h_t[i - 1], h_t[i], c_t[i])
 
             x_gen = self.conv_last(h_t[self.num_layers - 1])
             next_frames.append(x_gen)

@@ -26,7 +26,8 @@ def test(model, test_input_handle, configs, itr):
     print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'test...')
     test_input_handle.begin(do_shuffle=False)
     res_path = os.path.join(configs.gen_frm_dir, str(itr))
-    os.mkdir(res_path)
+    #os.mkdir(res_path)
+    os.makedirs(res_path, exist_ok=True)
     avg_mse = 0
     batch_id = 0
     img_mse, ssim, psnr = [], [], []
@@ -103,8 +104,9 @@ def test(model, test_input_handle, configs, itr):
 
             psnr[i] += metrics.batch_psnr(pred_frm, real_frm)
             for b in range(configs.batch_size):
-                score, _ = compare_ssim(pred_frm[b], real_frm[b], full=True, multichannel=True)
+                score, _ = compare_ssim(pred_frm[b], real_frm[b], full=True, channel_axis=2)  
                 ssim[i] += score
+
 
         # save prediction examples
         if batch_id <= configs.num_save_samples:

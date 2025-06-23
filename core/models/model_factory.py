@@ -26,7 +26,8 @@ class Model(object):
     def save(self, itr):
         stats = {}
         stats['net_param'] = self.network.state_dict()
-        checkpoint_path = os.path.join(self.configs.save_dir, 'model.ckpt'+'-'+str(itr))
+        # Use the custom model name from configs
+        checkpoint_path = os.path.join(self.configs.save_dir, f'{self.configs.save_model_name}.ckpt-{str(itr)}')
         torch.save(stats, checkpoint_path)
         print("save model to %s" % checkpoint_path)
 

@@ -10,12 +10,17 @@ from core.models.model_factory import Model
 from core.utils import preprocess
 import core.trainer as trainer
 
+CLEAR_CHECKPOINTS = False
+USE_ATTENTION = True 
+USE_V2 = True
 # -----------------------------------------------------------------------------
 parser = argparse.ArgumentParser(description='PyTorch video prediction model - PredRNN')
 
 # training/test
-parser.add_argument('--is_training', type=int, default=1)
+parser.add_argument('--is_training', type=int, default=0)
 parser.add_argument('--device', type=str, default='cpu:0')
+parser.add_argument('--use_attention', type=int, default=int(USE_ATTENTION), help='use attention mechanism')
+parser.add_argument('--attention_heads', type=int, default=8, help='number of attention heads')
 
 # data
 parser.add_argument('--dataset_name', type=str, default='mnist')
@@ -25,16 +30,20 @@ parser.add_argument('--save_dir', type=str, default='checkpoints/mnist_predrnn')
 parser.add_argument('--gen_frm_dir', type=str, default='results/mnist_predrnn')
 parser.add_argument('--input_length', type=int, default=10)
 parser.add_argument('--total_length', type=int, default=20)
-parser.add_argument('--img_width', type=int, default=64)
+parser.add_argument('--img_width', type=int, default=64)               #64)
 parser.add_argument('--img_channel', type=int, default=1)
 
 # model
-parser.add_argument('--model_name', type=str, default='predrnn')
-parser.add_argument('--pretrained_model', type=str, default='')
+if USE_V2:
+    parser.add_argument('--model_name', type=str, default='predrnn_v2')
+else:
+    parser.add_argument('--model_name', type=str, default='predrnn')
+parser.add_argument('--pretrained_model', type=str, default='checkpoints/mnist_predrnn/attention_model.ckpt-10')
+parser.add_argument('--save_model_name', type=str, default='attention_model', help='base name for saved model files')  # Add this line
 parser.add_argument('--num_hidden', type=str, default='64,64,64,64')
 parser.add_argument('--filter_size', type=int, default=5)
 parser.add_argument('--stride', type=int, default=1)
-parser.add_argument('--patch_size', type=int, default=4)
+parser.add_argument('--patch_size', type=int, default=4)                        #4)
 parser.add_argument('--layer_norm', type=int, default=1)
 parser.add_argument('--decouple_beta', type=float, default=0.1)
 
@@ -53,10 +62,10 @@ parser.add_argument('--sampling_changing_rate', type=float, default=0.00002)
 parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--reverse_input', type=int, default=1)
 parser.add_argument('--batch_size', type=int, default=8)
-parser.add_argument('--max_iterations', type=int, default=80000)
+parser.add_argument('--max_iterations', type=int, default= 10)    #80000)
 parser.add_argument('--display_interval', type=int, default=100)
 parser.add_argument('--test_interval', type=int, default=5000)
-parser.add_argument('--snapshot_interval', type=int, default=5000)
+parser.add_argument('--snapshot_interval', type=int, default=5)          #5000)
 parser.add_argument('--num_save_samples', type=int, default=10)
 parser.add_argument('--n_gpu', type=int, default=1)
 
@@ -178,6 +187,7 @@ def train_wrapper(model):
     eta = args.sampling_start_value
 
     for itr in range(1, args.max_iterations + 1):
+        print('Iteration: {}/{}'.format(itr, args.max_iterations))
         if train_input_handle.no_batch_left():
             train_input_handle.begin(do_shuffle=True)
         ims = train_input_handle.get_batch()
@@ -207,16 +217,18 @@ def test_wrapper(model):
     trainer.test(model, test_input_handle, args, 'test_result')
 
 
-try:
-    shutil.rmtree(args.save_dir, ignore_errors=True)
-except Exception:
-    pass
-os.makedirs(args.save_dir, exist_ok=True)
 
-try:
-    shutil.rmtree(args.gen_frm_dir, ignore_errors=True)
-except Exception:
-    pass
+if args.is_training and CLEAR_CHECKPOINTS:
+    try:
+        shutil.rmtree(args.save_dir, ignore_errors=True)
+    except Exception:
+        pass
+    try:
+        shutil.rmtree(args.gen_frm_dir, ignore_errors=True)
+    except Exception:
+        pass
+
+os.makedirs(args.save_dir, exist_ok=True)
 os.makedirs(args.gen_frm_dir, exist_ok=True)
 
 print('Initializing models')
