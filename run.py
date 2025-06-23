@@ -11,9 +11,9 @@ from core.utils import preprocess
 import core.trainer as trainer
 
 CLEAR_CHECKPOINTS = False
-USE_ATTENTION = False
+USE_ATTENTION = True
 USE_V2 = True
-TEST_PHASE = False
+TEST_PHASE = True
 # -----------------------------------------------------------------------------
 parser = argparse.ArgumentParser(description='PyTorch video prediction model - PredRNN')
 
@@ -39,8 +39,9 @@ if USE_V2:
     parser.add_argument('--model_name', type=str, default='predrnn_v2')
 else:
     parser.add_argument('--model_name', type=str, default='predrnn')
-parser.add_argument('--pretrained_model', type=str, default='')#'checkpoints/mnist_predrnn/attention_model.ckpt-10')
-parser.add_argument('--save_model_name', type=str, default='baseline_model', help='base name for saved model files')  # Add this line
+# Always add pretrained_model argument
+parser.add_argument('--pretrained_model', type=str, default='')
+parser.add_argument('--save_model_name', type=str, default='attention_model', help='base name for saved model files')  # Add this line
 parser.add_argument('--num_hidden', type=str, default='64,64,64,64')
 parser.add_argument('--filter_size', type=int, default=5)
 parser.add_argument('--stride', type=int, default=1)
@@ -211,29 +212,45 @@ def train_wrapper(model):
         train_input_handle.next()
 
 
-def test_wrapper(model):
+def test_wrapper(model, result_folder='test_result'):
     model.load(args.pretrained_model)
     test_input_handle = datasets_factory.data_provider(
         args.dataset_name, args.train_data_paths, args.valid_data_paths, args.batch_size, args.img_width,
         seq_length=args.total_length, injection_action=args.injection_action, is_training=False)
-    trainer.test(model, test_input_handle, args, 'test_result')
+    trainer.test(model, test_input_handle, args, result_folder)
 
 
 
 
 
 if TEST_PHASE:
-    model_names = os.listdir('checkpoints/mnist_predrnn')
+    model_names = os.listdir('checkpoints')
+    print(model_names)
     for model_name in model_names:
-        parser.add_argument('--pretrained_model', type=str, default=model_name)
+        # Skip if it's not a checkpoint file
+        if not model_name.endswith('.ckpt') and not os.path.isfile(os.path.join('checkpoints', model_name)):
+            continue
+            
+        # empty results directory
+        results_path = os.path.join('results', 'mnist_predrnn', 'test_result')
+        shutil.rmtree(results_path, ignore_errors=True)
 
-        os.makedirs(args.save_dir, exist_ok=True)
-        os.makedirs(args.gen_frm_dir, exist_ok=True)
+        print('Folder empmtied')
+        
+        # Create results directory
+        os.makedirs(results_path, exist_ok=True)
 
+        print('results directory created')
+        
+        # Set the pretrained model path directly
+        args.pretrained_model = os.path.join('checkpoints', model_name)
+        
         print('Initializing model {}'.format(model_name))
 
         model = Model(args)
-        test_wrapper(model)
+
+        print('model initialized')
+        test_wrapper(model, result_folder=f'results_{model_name}')
 else:
 
 
