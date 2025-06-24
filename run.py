@@ -11,14 +11,14 @@ from core.utils import preprocess
 import core.trainer as trainer
 
 CLEAR_CHECKPOINTS = False
-USE_ATTENTION = True
+USE_ATTENTION = False
 USE_V2 = True
 TEST_PHASE = True
 # -----------------------------------------------------------------------------
 parser = argparse.ArgumentParser(description='PyTorch video prediction model - PredRNN')
 
 # training/test
-parser.add_argument('--is_training', type=int, default=1)
+parser.add_argument('--is_training', type=int, default=0)
 parser.add_argument('--device', type=str, default='cpu:0')
 parser.add_argument('--use_attention', type=int, default=int(USE_ATTENTION), help='use attention mechanism')
 parser.add_argument('--attention_heads', type=int, default=8, help='number of attention heads')
@@ -224,11 +224,13 @@ def test_wrapper(model, result_folder='test_result'):
 
 
 if TEST_PHASE:
-    model_names = os.listdir('checkpoints')
+    path = 'attention_checkpoints' if USE_ATTENTION else 'baseline_checkpoints'
+    model_names = os.listdir(path)
     print(model_names)
     for model_name in model_names:
         # Skip if it's not a checkpoint file
-        if not model_name.endswith('.ckpt') and not os.path.isfile(os.path.join('checkpoints', model_name)):
+        if not model_name.endswith('.ckpt') and not os.path.isfile(os.path.join(path, model_name)):
+            print(f'Skipping {model_name}, not a valid checkpoint file.')
             continue
             
         # empty results directory
@@ -243,14 +245,15 @@ if TEST_PHASE:
         print('results directory created')
         
         # Set the pretrained model path directly
-        args.pretrained_model = os.path.join('checkpoints', model_name)
-        
+        args.pretrained_model = os.path.join(path, model_name)
+
         print('Initializing model {}'.format(model_name))
 
         model = Model(args)
 
         print('model initialized')
         test_wrapper(model, result_folder=f'results_{model_name}')
+        print('------------------------------------Successfully tested model {}------------------------------------'.format(model_name))
 else:
 
 
